@@ -7,53 +7,68 @@ class SalesView:
         self.page.title = "POS - Dulcería La Rosa"
         self.page.padding = 0
         self.page.theme_mode = "light"
-        self.page.window_bgcolor = "#FFFFFF"
+        self.page.bgcolor = "#FFFFFF"
+        self.page.window_width = 1024
+        self.page.window_height = 768
+        self.page.window_resizable = False
         
-        # Diccionario para almacenar los productos en el carrito
         self.cart = {}
         self.total = Decimal('0.00')
         
-        # Productos de prueba
-        self.test_products = [
-            ["BOLIS", "Bolis de Fresa", "5.00", "1", "5.00"],
-            ["BOTANA", "Botana MR Saulo", "15.00", "2", "30.00"],
-            ["DULCE", "Dulce a Granel", "8.50", "3", "25.50"],
-            ["BOLSA", "Bolsa 8x24", "12.00", "1", "12.00"],
-        ]
-
-        # Inicializar componentes
         self.initialize_components()
-        
-    def on_code_submit(self, e):
-        
-        code = e.control.value.strip().upper()
-        
-        # Diccionario simulado de productos (esto debería venir de tu base de datos)
-        products_db = {
-            "BOLIS": {"name": "Bolis de Fresa", "price": 5.00},
-            "BOLSA": {"name": "Bolsa 8x24", "price": 12.00},
-            "BOTANA": {"name": "Botana MR Saulo", "price": 15.00},
-            "DULCE": {"name": "Dulce a Granel", "price": 8.50},
-        }
-        
-        if code in products_db:
-            product = products_db[code]
-            self.add_product(code, product["name"], product["price"])
-        else:
-            # Mostrar mensaje de error si el producto no existe
-            self.page.show_snack_bar(
-                ft.SnackBar(
-                    content=ft.Text(f"Producto no encontrado: {code}"),
-                    action="Ok"
-                )
-            )
-        
-        # Limpiar el campo de entrada
-        e.control.value = ""
-        self.page.update()
+        self.build()
+
+    def build(self):
+        # Layout principal usando Stack para posicionar el total al fondo
+        main_layout = ft.Column(
+            controls=[
+                # Sección superior con productos y botones de acción
+                ft.Row(
+                    controls=[
+                        # Columna izquierda con productos y ticket
+                        ft.Column(
+                            controls=[
+                                ft.Container(  # Contenedor para la sección superior
+                                    content=ft.Column(
+                                        controls=[
+                                            self.products_grid,
+                                            self.code_input,
+                                        ],
+                                    ),
+                                    height=300,  # 50% del espacio disponible
+                                ),
+                                ft.Container(  # Contenedor para el ticket
+                                    content=self.cart_container,
+                                    height=300,  # 50% del espacio disponible
+                                ),
+                            ],
+                            expand=True,
+                            spacing=0,
+                        ),
+                        # Columna derecha con botones de acción
+                        self.create_action_buttons(),
+                    ],
+                    expand=True,
+                ),
+                # Total siempre al fondo
+                self.total_container,
+            ],
+            spacing=0,
+            expand=True,
+        )
+
+        self.page.add(main_layout)
 
     def initialize_components(self):
-        # Modificamos cart_items para que inicie vacío
+        # Sección de botones de productos
+        self.products_grid = ft.Container(
+            content=self.create_product_buttons(),
+            bgcolor="#F5F5F5",
+            padding=10,
+            height=300,  # Aumentamos la altura del contenedor de productos
+        )
+
+        # Sección del ticket
         self.cart_items = ft.DataTable(
             width=800,
             border_radius=8,
@@ -67,11 +82,22 @@ class SalesView:
                 ft.DataColumn(ft.Text("P. Unit", size=14, weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Cant.", size=14, weight=ft.FontWeight.BOLD)),
                 ft.DataColumn(ft.Text("Total", size=14, weight=ft.FontWeight.BOLD)),
-                ft.DataColumn(ft.Text("", size=14)),  # Columna para botón eliminar
+                ft.DataColumn(ft.Text("", size=14)),
             ],
             rows=[],
         )
 
+        # Contenedor del ticket con scroll
+        self.cart_container = ft.Container(
+            content=self.cart_items,
+            bgcolor="#FFFFFF",
+            padding=10,
+            height=350,  # Altura fija para el ticket
+            border=ft.border.all(1, "#EEEEEE"),
+            border_radius=8,
+        )
+
+        # Campo de código
         self.code_input = ft.TextField(
             label="Código",
             width=200,
@@ -79,9 +105,10 @@ class SalesView:
             bgcolor="#FFFFFF",
             border_radius=5,
             text_size=14,
-            on_submit=self.on_code_submit  # Asegúrate de que esta línea esté presente
+            on_submit=self.on_code_submit
         )
 
+        # Total display
         self.total_display = ft.Text(
             value="$ 0.00",
             size=40,
@@ -89,273 +116,62 @@ class SalesView:
             color="#000000",
         )
 
-    def add_product(self, code, name, price):
-        if code in self.cart:
-            self.cart[code]['quantity'] += 1
-        else:
-            self.cart[code] = {
-                'name': name,
-                'price': Decimal(str(price)),
-                'quantity': 1
-            }
-        
-        self.update_cart_display()
-
-    def remove_product(self, code):
-        if code in self.cart:
-            del self.cart[code]
-            self.update_cart_display()
-
-    def update_quantity(self, code, new_quantity):
-        if code in self.cart and new_quantity > 0:
-            self.cart[code]['quantity'] = new_quantity
-            self.update_cart_display()
-        elif new_quantity <= 0:
-            self.remove_product(code)
-
-    def update_cart_display(self):
-        # Actualizar tabla
-        new_rows = []
-        self.total = Decimal('0.00')
-        
-        for code, item in self.cart.items():
-            subtotal = item['price'] * item['quantity']
-            self.total += subtotal
-            
-            new_rows.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(code)),
-                        ft.DataCell(ft.Text(item['name'])),
-                        ft.DataCell(ft.Text(f"${item['price']:.2f}")),
-                        ft.DataCell(
-                            ft.TextField(
-                                value=str(item['quantity']),
-                                width=50,
-                                text_align=ft.TextAlign.CENTER,
-                                on_submit=lambda e, c=code: self.update_quantity(c, int(e.control.value))
-                            )
-                        ),
-                        ft.DataCell(ft.Text(f"${subtotal:.2f}")),
-                        ft.DataCell(
-                            ft.IconButton(
-                                icon=ft.icons.DELETE,
-                                icon_color="red",
-                                on_click=lambda e, c=code: self.remove_product(c)
-                            )
-                        ),
-                    ]
-                )
-            )
-        
-        self.cart_items.rows = new_rows
-        self.total_display.value = f"$ {self.total:.2f}"
-        self.page.update()
-
-    def show_payment_dialog(self, e):
-        def close_dlg(e):
-            payment_dialog.open = False
-            self.page.update()
-
-        def process_payment(e):
-            # Lógica para procesar el pago
-            self.cart = {}
-            self.update_cart_display()
-            close_dlg(e)
-
-        def update_received_amount(number):
-            current = amount_received.value or "0"
-            if number == "." and "." in current:
-                return
-            if number == "x":  # borrar último dígito
-                amount_received.value = current[:-1] if len(current) > 1 else "0"
-            else:
-                amount_received.value = (current + str(number)) if current != "0" else str(number)
-            
-            try:
-                payment_amount = Decimal(amount_received.value)
-                change_amount = payment_amount - self.total
-                change_display.value = f"{change_amount:.2f}"
-            except:
-                change_display.value = "0.00"
-            
-            self.page.update()
-
-        # Crear los controles principales
-        amount_received = ft.TextField(
-            value="0.00",
-            read_only=True,
-            width=200,
-            text_size=24,
-            text_align=ft.TextAlign.RIGHT,
-            bgcolor="#FFFFFF"
-        )
-
-        change_display = ft.TextField(
-            value="0.00",
-            read_only=True,
-            width=200,
-            text_size=24,
-            text_align=ft.TextAlign.RIGHT,
-            bgcolor="#FFFFFF"
-        )
-
-        # Crear el pad numérico
-        numpad = ft.Column(
-            controls=[
-                ft.Row(
-                    controls=[
-                        ft.ElevatedButton(text="7", width=50, on_click=lambda e: update_received_amount("7")),
-                        ft.ElevatedButton(text="8", width=50, on_click=lambda e: update_received_amount("8")),
-                        ft.ElevatedButton(text="9", width=50, on_click=lambda e: update_received_amount("9")),
-                        ft.ElevatedButton(text="109.00", width=100),
-                    ]
-                ),
-                ft.Row(
-                    controls=[
-                        ft.ElevatedButton(text="4", width=50, on_click=lambda e: update_received_amount("4")),
-                        ft.ElevatedButton(text="5", width=50, on_click=lambda e: update_received_amount("5")),
-                        ft.ElevatedButton(text="6", width=50, on_click=lambda e: update_received_amount("6")),
-                        ft.ElevatedButton(text="10", width=100),
-                    ]
-                ),
-                ft.Row(
-                    controls=[
-                        ft.ElevatedButton(text="1", width=50, on_click=lambda e: update_received_amount("1")),
-                        ft.ElevatedButton(text="2", width=50, on_click=lambda e: update_received_amount("2")),
-                        ft.ElevatedButton(text="3", width=50, on_click=lambda e: update_received_amount("3")),
-                        ft.ElevatedButton(text="20", width=100),
-                    ]
-                ),
-                ft.Row(
-                    controls=[
-                        ft.ElevatedButton(text="0", width=50, on_click=lambda e: update_received_amount("0")),
-                        ft.ElevatedButton(text=".", width=50, on_click=lambda e: update_received_amount(".")),
-                        ft.ElevatedButton(text="x", width=50, on_click=lambda e: update_received_amount("x")),
-                        ft.ElevatedButton(text="50", width=100),
-                    ]
-                ),
-            ]
-        )
-
-        # Lista de métodos de pago
-        payment_methods = ft.ListView(
-            width=200,
-            height=200,
-            spacing=2,
-            controls=[
-                ft.ListTile(title=ft.Text("EFECTIVO"), selected=True),
-                ft.ListTile(title=ft.Text("VISA")),
-                ft.ListTile(title=ft.Text("MASTERCARD")),
-                ft.ListTile(title=ft.Text("AMEX")),
-                ft.ListTile(title=ft.Text("CHEQUE")),
-            ],
-        )
-
-        payment_dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("Registro Venta"),
-            content=ft.Container(
-                content=ft.Column(
-                    controls=[
-                        # Fila superior con totales
-                        ft.Row(
-                            controls=[
-                                ft.Column(
-                                    controls=[
-                                        ft.Text("TOTAL", size=12),
-                                        ft.Text(f"{self.total:.2f}", size=24, color="red"),
-                                    ],
-                                ),
-                                ft.Column(
-                                    controls=[
-                                        ft.Text("Recibido", size=12),
-                                        amount_received,
-                                    ],
-                                ),
-                                ft.Column(
-                                    controls=[
-                                        ft.Text("Saldo", size=12),
-                                        change_display,
-                                    ],
-                                ),
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        ),
-                        # Fila con pad numérico y métodos de pago
-                        ft.Row(
-                            controls=[
-                                numpad,
-                                ft.Column(
-                                    controls=[
-                                        ft.Text("Modo de Pago"),
-                                        payment_methods,
-                                    ],
-                                ),
-                            ],
-                        ),
-                        # Botones de acción
-                        ft.Row(
-                            controls=[
-                                ft.ElevatedButton(
-                                    "Registrar",
-                                    icon=ft.icons.PRINT,
-                                    on_click=process_payment
-                                ),
-                                ft.ElevatedButton(
-                                    "Cancelar",
-                                    icon=ft.icons.CANCEL,
-                                    on_click=close_dlg
-                                ),
-                            ],
-                            alignment=ft.MainAxisAlignment.END,
-                        ),
-                    ],
-                ),
-                padding=20,
+        # Contenedor del total
+        self.total_container = ft.Container(
+            content=ft.Row(
+                controls=[
+                    ft.Text("$ ", size=30, weight=ft.FontWeight.BOLD),
+                    ft.Text(
+                        "0.00",
+                        size=30,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                ],
+                alignment=ft.MainAxisAlignment.END,  # Alinea a la derecha
             ),
+            padding=10,
+            width=self.page.width,  # Usa el ancho completo de la página
         )
 
-        self.page.dialog = payment_dialog
-        payment_dialog.open = True
-        self.page.update()
 
     def create_product_buttons(self):
         products = [
-            {"code": "BOLIS", "name": "Bolis de Fresa", "price": 29.00},
-            {"code": "BOTANA", "name": "BOTANA", "price": 45.00},
-            {"code": "DULCE", "name": "Dulce", "price": 12.00},
-            {"code": "VASO", "name": "VASO 16", "price": 35.00},
-            {"code": "CHOCOLATE", "name": "CHOCOLATE NUGS", "price": 78.00},
-            {"code": "PALETA", "name": "PALETA JUMBO", "price": 99.00},
-            {"code": "PALOMITAS", "name": "PALOMITAS", "price": 40.00},
+            {"code": "BOLIS", "name": "Bolis de Fresa", "price": 5.00},
+            {"code": "BOTANA", "name": "BOTANA", "price": 12.00},
+            {"code": "DULCE", "name": "Dulce", "price": 15.00},
+            {"code": "VASO16", "name": "VASO 16", "price": 35.00},
+            {"code": "CHOCO", "name": "CHOCOLATE\nNUGS", "price": 78.00},
+            {"code": "PALETA", "name": "PALETA\nJUMBO", "price": 25.00},
+            {"code": "PALOM", "name": "PALOMITAS\nCON QUEMSO", "price": 45.00},
         ]
         
-        return ft.Container(
-        content=ft.GridView(
-            expand=1,
+        return ft.GridView(
+            expand=True,
             runs_count=5,
             max_extent=150,
-            spacing=10,
-            run_spacing=10,
+            spacing=5,
+            run_spacing=5,
             controls=[
-                ft.ElevatedButton(
-                    text=product["name"],
-                    style=ft.ButtonStyle(
-                        bgcolor="#B3E5FC",
-                        color="#000000",
-                        shape={"": ft.RoundedRectangleBorder(radius=8)},
+                ft.Container(
+                    content=ft.Text(
+                        product["name"],
+                        size=11,
+                        text_align=ft.TextAlign.CENTER,
+                        no_wrap=False,
                     ),
-                    width=140,
-                    height=50,
-                    on_click=lambda e, p=product: self.add_product(p["code"], p["name"], p["price"])
+                    width=120,  # Ancho fijo para todos los botones
+                    height=45,
+                    bgcolor="#B3E5FC",
+                    border_radius=8,
+                    padding=5,
+                    on_click=lambda e, p=product: self.add_product(p["code"], p["name"], p["price"]),
+                    ink=True,
+                    alignment=ft.alignment.center,  # Centra el contenido
                 ) for product in products
             ],
-        ),
-        padding=20,
-        bgcolor="#F5F5F5",
-        height=300,
-    )
+        )
+
+
 
     def create_action_buttons(self):
         return ft.Container(
@@ -377,72 +193,304 @@ class SalesView:
                         height=45,
                         on_click=self.show_payment_dialog
                     ),
-                    # ... otros botones ...
                 ],
                 spacing=10,
             ),
             padding=20,
+            width=200,
         )
 
-    def create_action_button(self, text, icon):
-        return ft.ElevatedButton(
-            content=ft.Row(
-                controls=[
-                    ft.Icon(icon, color="#1565C0"),
-                    ft.Text(text, size=14),
-                ],
-                alignment=ft.MainAxisAlignment.START,
-            ),
-            style=ft.ButtonStyle(
-                bgcolor="#FFFFFF",
-                shape={"": ft.RoundedRectangleBorder(radius=8)},
-            ),
-            width=160,
-            height=45,
+    def add_product(self, code, name, price):
+        if code in self.cart:
+            self.cart[code]["quantity"] += 1
+        else:
+            self.cart[code] = {
+                "name": name,
+                "price": Decimal(str(price)),
+                "quantity": 1
+            }
+        self.update_cart_display()
+
+    def remove_product(self, code):
+        if code in self.cart:
+            del self.cart[code]
+            self.update_cart_display()
+
+    def update_cart_display(self):
+        # Actualizar la tabla del carrito
+        self.cart_items.rows = []
+        self.total = Decimal('0.00')
+
+        for code, item in self.cart.items():
+            subtotal = item["price"] * item["quantity"]
+            self.total += subtotal
+
+            self.cart_items.rows.append(
+                ft.DataRow(
+                    cells=[
+                        ft.DataCell(ft.Text(code)),
+                        ft.DataCell(ft.Text(item["name"])),
+                        ft.DataCell(ft.Text(f"${item['price']:.2f}")),
+                        ft.DataCell(ft.Text(str(item["quantity"]))),
+                        ft.DataCell(ft.Text(f"${subtotal:.2f}")),
+                        ft.DataCell(
+                            ft.IconButton(
+                                ft.icons.DELETE_OUTLINE,
+                                icon_color="red",
+                                on_click=lambda e, c=code: self.remove_product(c)
+                            )
+                        ),
+                    ]
+                )
+            )
+
+        # Actualizar el total
+        self.total_display.value = f"$ {self.total:.2f}"
+        self.page.update()
+
+    def on_code_submit(self, e):
+        code = e.control.value.strip().upper()
+        
+        # Diccionario simulado de productos (esto debería venir de tu base de datos)
+        products_db = {
+            "BOLIS": {"name": "Bolis de Fresa", "price": 5.00},
+            "BOTANA": {"name": "Botana", "price": 12.00},
+            "DULCE": {"name": "Dulce", "price": 15.00},
+            "VASO16": {"name": "Vaso 16", "price": 35.00},
+        }
+        
+        if code in products_db:
+            product = products_db[code]
+            self.add_product(code, product["name"], product["price"])
+        else:
+            self.page.show_snack_bar(
+                ft.SnackBar(
+                    content=ft.Text(f"Producto no encontrado: {code}"),
+                    action="Ok"
+                )
+            )
+        
+        e.control.value = ""
+        self.page.update()
+
+    def show_payment_dialog(self, e):
+        def close_dlg():
+            dlg_modal.open = False
+            self.page.update()
+
+        def process_payment():
+            # Aquí puedes agregar la lógica para guardar la venta
+            self.cart = {}
+            self.update_cart_display()
+            close_dlg()
+
+        def handle_enter(e):
+            if received_field.value == "0.00" or received_field.value == "":
+                # Si no se ha ingresado monto, usar el total
+                received_field.value = f"{self.total:.2f}"
+                calculate_change(None)
+                self.page.update()
+            else:
+                # Verificar si el cambio ya fue calculado
+                try:
+                    change_amount = float(change_field.value)
+                    # Si llegamos aquí, el cambio ya está calculado, procedemos con el pago
+                    process_payment()
+                except ValueError:
+                    # Si el cambio aún no se ha calculado, calcularlo primero
+                    calculate_change(None)
+                    self.page.update()
+
+
+
+        def calculate_change(e):
+            try:
+                received = Decimal(received_field.value if received_field.value else "0")
+                change = received - self.total
+                change_text.value = f"${change:.2f}"
+                if change >= 0:
+                    process_button.disabled = False
+                    change_text.color = "blue"
+                else:
+                    process_button.disabled = True
+                    change_text.color = "red"
+                self.page.update()
+            except:
+                change_text.value = "Monto inválido"
+                change_text.color = "red"
+                process_button.disabled = True
+                self.page.update()
+
+        # Campos superiores con mejor diseño
+        amounts_row = ft.Row(
+            controls=[
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("TOTAL A PAGAR", size=14, color="#1565C0", weight=ft.FontWeight.BOLD),
+                        ft.Text(f"${self.total:.2f}", 
+                            size=28, 
+                            color="#E53935", 
+                            weight=ft.FontWeight.BOLD)
+                    ]),
+                    bgcolor="white",
+                    padding=15,
+                    border_radius=8,
+                    border=ft.border.all(1, "#E0E0E0"),
+                    width=200,
+                ),
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("RECIBIDO", size=14, color="#2E7D32", weight=ft.FontWeight.BOLD),
+                        received_field := ft.TextField(
+                            value="0.00",
+                            text_align=ft.TextAlign.RIGHT,
+                            width=150,
+                            height=40,
+                            text_size=24,
+                            border_color="#2E7D32",
+                            focused_border_color="#2E7D32",
+                            on_change=calculate_change,
+                            on_submit=handle_enter,  # Cambiado de on_key_event a on_submit
+                        )
+                    ]),
+                    bgcolor="white",
+                    padding=15,
+                    border_radius=8,
+                    border=ft.border.all(1, "#E0E0E0"),
+                    width=200,
+                ),
+                ft.Container(
+                    content=ft.Column([
+                        ft.Text("CAMBIO", size=14, color="#1565C0", weight=ft.FontWeight.BOLD),
+                        change_text := ft.Text("$0.00", 
+                                            size=28, 
+                                            color="#1565C0", 
+                                            weight=ft.FontWeight.BOLD)
+                    ]),
+                    bgcolor="white",
+                    padding=15,
+                    border_radius=8,
+                    border=ft.border.all(1, "#E0E0E0"),
+                    width=200,
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        )
+        
+        payment_method = ft.Ref[ft.RadioGroup]()
+
+        # Lista de métodos de pago con mejor diseño
+        payment_methods = ft.Container(
+                content=ft.Column(
+                    controls=[
+                        ft.Text("MÉTODO DE PAGO", 
+                            size=14, 
+                            color="#1565C0", 
+                            weight=ft.FontWeight.BOLD),
+                        ft.Container(
+                            content=ft.RadioGroup(
+                                ref=payment_method,
+                                content=ft.Column(
+                                    controls=[
+                                        ft.Radio(value="EFECTIVO", label="EFECTIVO",
+                                                fill_color="#2E7D32"),
+                                        ft.Radio(value="VISA", label="VISA",
+                                                fill_color="#1565C0"),
+                                        ft.Radio(value="MASTERCARD", label="MASTERCARD",
+                                                fill_color="#E53935"),
+                                        ft.Radio(value="AMEX", label="AMEX",
+                                                fill_color="#1565C0"),
+                                        ft.Radio(value="CHEQUE", label="CHEQUE",
+                                                fill_color="#795548"),
+                                    ],
+                                ),
+                            ),
+                            bgcolor="white",
+                            border=ft.border.all(1, "#E0E0E0"),
+                            border_radius=8,
+                            padding=10,
+                        )
+                    ],
+                ),
+            )
+
+        # Modificar la función process_payment para incluir el método de pago
+        def process_payment():
+            selected_method = payment_method.current.value
+            # Aquí puedes usar selected_method para guardar el método de pago
+            # junto con los demás datos de la venta
+            self.cart = {}
+            self.update_cart_display()
+            close_dlg()
+
+        # Botones de acción con mejor diseño
+        action_buttons = ft.Row(
+            controls=[
+                process_button := ft.ElevatedButton(
+                    "REGISTRAR VENTA",
+                    icon=ft.icons.POINT_OF_SALE,
+                    style=ft.ButtonStyle(
+                        bgcolor={"": "#2E7D32"},
+                        color={"": "white"},
+                    ),
+                    on_click=lambda _: process_payment(),
+                    height=50,
+                ),
+                ft.ElevatedButton(
+                    "CANCELAR",
+                    icon=ft.icons.CANCEL,
+                    style=ft.ButtonStyle(
+                        bgcolor={"": "#C62828"},
+                        color={"": "white"},
+                    ),
+                    on_click=lambda _: close_dlg(),
+                    height=50,
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.END,
+            spacing=20,
         )
 
-    def build(self):
-        return ft.Container(
+        # Contenido del diálogo
+        dlg_content = ft.Container(
             content=ft.Column(
                 controls=[
-                    # Panel superior con botones de productos
-                    self.create_product_buttons(),
-                    
-                    # Área principal
-                    ft.Container(
-                        content=ft.Row(
-                            controls=[
-                                # Área del ticket
-                                ft.Column(
-                                    controls=[
-                                        self.cart_items,
-                                        ft.Container(
-                                            content=self.code_input,
-                                            padding=ft.padding.only(top=10),
-                                        ),
-                                    ],
-                                    expand=True,
-                                ),
-                                # Botones de acción
-                                self.create_action_buttons(),
-                            ],
-                            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                        ),
-                        padding=20,
-                        expand=True,
+                    amounts_row,
+                    ft.Divider(height=1, color="#E0E0E0"),
+                    ft.Row(
+                        controls=[payment_methods],
+                        alignment=ft.MainAxisAlignment.CENTER,
                     ),
-                    
-                    # Total
-                    ft.Container(
-                        content=self.total_display,
-                        alignment=ft.alignment.center_right,
-                        padding=ft.padding.only(right=40),
-                        height=60,
-                        bgcolor="#F5F5F5",
-                    ),
+                    ft.Divider(height=1, color="#E0E0E0"),
+                    action_buttons,
                 ],
-                spacing=0,
+                spacing=20,
             ),
-            border_radius=10,
-            bgcolor="#FFFFFF",
+            padding=30,
+            width=800,
         )
+
+        # Diálogo modal
+        dlg_modal = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("Registro de Venta", 
+                        size=20, 
+                        weight=ft.FontWeight.BOLD,
+                        color="#1565C0"),
+            content=dlg_content,
+        )
+
+        self.page.dialog = dlg_modal
+        dlg_modal.open = True
+        self.page.update()
+        # Hacer focus en el campo de monto recibido
+        received_field.focus()
+        self.page.update()
+
+
+    
+
+def main(page: ft.Page):
+    app = SalesView(page)
+
+ft.app(target=main)
